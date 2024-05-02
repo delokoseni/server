@@ -1,7 +1,7 @@
 QT -= gui
 QT += network core
+QT += sql
 CONFIG += c++11
-
 
 CONFIG += c++11 console
 CONFIG -= app_bundle
@@ -17,6 +17,9 @@ TRANSLATIONS += \
     server_ru_RU.ts
 CONFIG += lrelease
 CONFIG += embed_translations
+
+# Linking with PostgreSQL libraries
+LIBS += -L/usr/local/lib -lpq
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
