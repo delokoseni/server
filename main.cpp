@@ -5,50 +5,49 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QDebug>
 
 class ChatServer : public QTcpServer {
     Q_OBJECT
+
 public:
-    //ChatServer(QObject *parent = nullptr) : QTcpServer(parent) {
-        //connect(this, &ChatServer::newConnection, this, &ChatServer::onNewConnection);
-    //}
     ChatServer(QObject *parent = nullptr) : QTcpServer(parent) {
-            // Установка подключения к SQLite базе данных
-            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-            db.setDatabaseName("messenger.db"); // Имя файла базы данных SQLite
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+        db.setDatabaseName("messenger.db"); // Путь к вашей базе данных SQLite
 
-            if (!db.open()) {
-                qCritical() << "Could not connect to database:" << db.lastError();
-                exit(1);
-            }
-
-            connect(this, &ChatServer::newConnection, this, &ChatServer::onNewConnection);
+        if (!db.open()) {
+            qCritical() << "Could not connect to database:" << db.lastError().text();
+            exit(1);
         }
 
-        bool isLoginFree(const QString& username) {
-            QSqlQuery query;
-            query.prepare("SELECT COUNT(*) FROM user_auth WHERE login = :login");
-            query.bindValue(":login", username);
-            if (!query.exec()) {
-                qCritical() << "Failed to check if login is free:" << query.lastError();
-                return false;
-            }
-            if (query.next()) {
-                int usersCount = query.value(0).toInt();
-                return usersCount == 0;
-            }
+        connect(this, &ChatServer::newConnection, this, &ChatServer::onNewConnection);
+    }
+
+    bool isLoginFree(const QString& username) {
+        QSqlQuery query;
+        query.prepare("SELECT COUNT(*) FROM user_auth WHERE login = :login");
+        query.bindValue(":login", username);
+        if (!query.exec()) {
+            qCritical() << "Failed to check if login is free:" << query.lastError().text();
             return false;
         }
-
-        void addUserToDatabase(const QString& username, const QString& password) {
-            QSqlQuery query;
-            query.prepare("INSERT INTO user_auth (login, password) VALUES (:login, :password)");
-            query.bindValue(":login", username);
-            query.bindValue(":password", password); // Замените это хэшированием в будущем!
-            if (!query.exec()) {
-                qCritical() << "Failed to add user to database:" << query.lastError();
-            }
+        if (query.next()) {
+            int usersCount = query.value(0).toInt();
+            return usersCount == 0;
         }
+        return false;
+    }
+
+    void addUserToDatabase(const QString& username, const QString& password) {
+        QSqlQuery query;
+        query.prepare("INSERT INTO user_auth (login, password) VALUES (:login, :password)");
+        query.bindValue(":login", username);
+        // Ваша логика хеш-функции должна быть здесь
+        query.bindValue(":password", password);
+        if (!query.exec()) {
+            qCritical() << "Failed to add user to database:" << query.lastError().text();
+        }
+    }
 
     void startServer(int port) {
         if (!this->listen(QHostAddress::Any, port)) {
@@ -62,42 +61,34 @@ public slots:
     void onNewConnection() {
         QTcpSocket *clientSocket = this->nextPendingConnection();
         connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
-            QString message = QString::fromUtf8(clientSocket->readAll());
-            qDebug() << "New message received:" << message;
-            // Здесь вы можете обрабатывать сообщения
-        });
-    }
-    void onReadyRead() {
-        QTcpSocket *clientSocket = qobject_cast<QTcpSocket *>(sender());
-        if (clientSocket) {
-            QString message = QString::fromUtf8(clientSocket->readAll().trimmed());
+            QTextStream stream(clientSocket);
+            QString message = stream.readAll().trimmed();
             qDebug() << "New message received:" << message;
 
-            QTextStream stream(clientSocket);
             QStringList parts = message.split(":");
             if (parts.first() == "register" && parts.count() == 3) {
-                QString login = parts.at(1);
+                QString username = parts.at(1);
                 QString password = parts.at(2);
 
-                if(isLoginFree(login)) {
-                    addUserToDatabase(login, password); // Add hashed password in a real app
+                if(isLoginFree(username)) {
+                    addUserToDatabase(username, password); // Добавляем пользователя в базу
                     stream << "register:success\n";
                 } else {
-                    stream << "register:error:Логин уже занят\n";
+                    stream << "register:error:username taken\n";
                 }
             }
-        }
+            // Можно добавить больше команд и их обработку здесь
+        });
     }
-
 };
 
 #include "main.moc"
 
-int main(int argc, char **argv) {
+int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     ChatServer server;
-    server.startServer(3000); // Запуск сервера на порту 3000
+    server.startServer(3000); // Запускаем сервер на порту 3000
 
     return app.exec();
 }
