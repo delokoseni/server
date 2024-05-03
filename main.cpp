@@ -5,7 +5,7 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
-#include <QDebug>
+#include <QDir>
 
 class ChatServer : public QTcpServer {
     Q_OBJECT
@@ -13,7 +13,8 @@ class ChatServer : public QTcpServer {
 public:
     ChatServer(QObject *parent = nullptr) : QTcpServer(parent) {
         QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-        db.setDatabaseName("messenger.db"); // Путь к вашей базе данных SQLite
+        db.setDatabaseName(QDir::homePath() + "/messenger.db");  // Обратите внимание, что это добавит messenger.db к домашнему каталогу пользователя
+
 
         if (!db.open()) {
             qCritical() << "Could not connect to database:" << db.lastError().text();
@@ -32,8 +33,7 @@ public:
             return false;
         }
         if (query.next()) {
-            int usersCount = query.value(0).toInt();
-            return usersCount == 0;
+            return query.value(0).toInt() == 0;
         }
         return false;
     }
@@ -42,10 +42,11 @@ public:
         QSqlQuery query;
         query.prepare("INSERT INTO user_auth (login, password) VALUES (:login, :password)");
         query.bindValue(":login", username);
-        // Ваша логика хеш-функции должна быть здесь
         query.bindValue(":password", password);
         if (!query.exec()) {
             qCritical() << "Failed to add user to database:" << query.lastError().text();
+        } else {
+            qDebug() << "User" << username << "successfully added.";
         }
     }
 
@@ -57,7 +58,35 @@ public:
         }
     }
 
-public slots:
+    // Вставьте этот кусок кода где-то в класс ChatServer
+    bool validateUser(const QString& username, const QString& password) {
+        QSqlQuery query;
+        query.prepare("SELECT password FROM user_auth WHERE login = :login");
+        query.bindValue(":login", username);
+        if (!query.exec()) {
+            qCritical() << "Failed to check user credentials:" << query.lastError().text();
+            return false;
+        }
+        if (query.next()) {
+            QString storedPassword = query.value(0).toString();
+            // In a real application, compare the hashed password instead
+            return password == storedPassword;
+        }
+        return false;
+    }
+
+    void processRegistration(QTcpSocket* clientSocket, const QString& username, const QString& password) {
+        if(isLoginFree(username)) {
+            addUserToDatabase(username, password); // Добавляем пользователя в базу
+            QTextStream stream(clientSocket);
+            stream << "register:success\n";
+        } else {
+            QTextStream stream(clientSocket);
+            stream << "register:fail:username taken\n";
+        }
+    }
+
+    public slots:
     void onNewConnection() {
         QTcpSocket *clientSocket = this->nextPendingConnection();
         connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
@@ -69,17 +98,12 @@ public slots:
             if (parts.first() == "register" && parts.count() == 3) {
                 QString username = parts.at(1);
                 QString password = parts.at(2);
-
-                if(isLoginFree(username)) {
-                    addUserToDatabase(username, password); // Добавляем пользователя в базу
-                    stream << "register:success\n";
-                } else {
-                    stream << "register:error:username taken\n";
-                }
+                processRegistration(clientSocket, username, password);
             }
             // Можно добавить больше команд и их обработку здесь
         });
     }
+
 };
 
 #include "main.moc"
@@ -88,7 +112,7 @@ int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     ChatServer server;
-    server.startServer(3000); // Запускаем сервер на порту 3000
+    server.startServer(3000); // Start server on port 3000
 
     return app.exec();
 }
