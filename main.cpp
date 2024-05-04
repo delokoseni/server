@@ -13,7 +13,7 @@ class ChatServer : public QTcpServer {
 public:
     ChatServer(QObject *parent = nullptr) : QTcpServer(parent) {
         QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-        db.setDatabaseName(QDir::homePath() + "/messenger.db");  // Обратите внимание, что это добавит messenger.db к домашнему каталогу пользователя
+        db.setDatabaseName(QDir::homePath() + "/messenger.db");
 
 
         if (!db.open()) {
@@ -58,7 +58,6 @@ public:
         }
     }
 
-    // Вставьте этот кусок кода где-то в класс ChatServer
     bool validateUser(const QString& username, const QString& password) {
         QSqlQuery query;
         query.prepare("SELECT password FROM user_auth WHERE login = :login");
