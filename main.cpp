@@ -68,7 +68,6 @@ public:
         }
         if (query.next()) {
             QString storedPassword = query.value(0).toString();
-            // In a real application, compare the hashed password instead
             return password == storedPassword;
         }
         return false;
@@ -85,6 +84,18 @@ public:
         }
     }
 
+    void processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password) {
+        if(validateUser(username, password)) {
+            QTextStream stream(clientSocket);
+            stream << "login:success\n";
+            stream.flush(); // Гарантируем отправку сообщения
+        } else {
+            QTextStream stream(clientSocket);
+            stream << "login:fail\n";
+            stream.flush(); // Гарантируем отправку сообщения
+        }
+    }
+
     public slots:
     void onNewConnection() {
         QTcpSocket *clientSocket = this->nextPendingConnection();
@@ -94,12 +105,17 @@ public:
             qDebug() << "New message received:" << message;
 
             QStringList parts = message.split(":");
-            if (parts.first() == "register" && parts.count() == 3) {
+            if(parts.count() >= 3) {
+                QString command = parts.first();
                 QString username = parts.at(1);
                 QString password = parts.at(2);
-                processRegistration(clientSocket, username, password);
+
+                if(command == "register") {
+                    processRegistration(clientSocket, username, password);
+                } else if (command == "login") {
+                    processLogin(clientSocket, username, password);
+                }
             }
-            // Можно добавить больше команд и их обработку здесь
         });
     }
 
