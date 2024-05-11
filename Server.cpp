@@ -90,7 +90,7 @@ void Server::processLogin(QTcpSocket* clientSocket, const QString& username, con
     }
 }
 
-void Server::onNewConnection() {
+/*void Server::onNewConnection() {
     QTcpSocket *clientSocket = this->nextPendingConnection();
     connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
         QTextStream stream(clientSocket);
@@ -98,7 +98,7 @@ void Server::onNewConnection() {
         qDebug() << "New message received:" << message;
 
         QStringList parts = message.split(":");
-        if(parts.count() >= 3) {
+        if(parts.count() >= 2) {
             QString command = parts.first();
             QString username = parts.at(1);
             QString password = parts.at(2);
@@ -115,21 +115,73 @@ void Server::onNewConnection() {
             }
         }
     });
+}*/
+
+void Server::onNewConnection() {
+    QTcpSocket *clientSocket = this->nextPendingConnection();
+    connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
+        QTextStream stream(clientSocket);
+        QString message = stream.readAll().trimmed();
+        qDebug() << "New message received:" << message;
+
+        QStringList parts = message.split(":");
+        if(parts.isEmpty()) return; // Если сообщение пустое, то ничего не делаем
+
+        QString command = parts.first();
+
+        if(command == "register" || command == "login") {
+            if(parts.count() < 3) return; // Для регистрации и входа нужно минимум 3 части
+            QString username = parts.at(1);
+            QString password = parts.at(2);
+
+            if(command == "register") {
+                processRegistration(clientSocket, username, password);
+            } else { // Здесь else, так как команда может быть только "login"
+                processLogin(clientSocket, username, password);
+            }
+        } else if (command == "search") {
+            if(parts.count() < 2) return; // Для поиска нужно минимум 2 части
+            QString searchText = parts.at(1);
+            processSearchRequest(clientSocket, searchText);
+        }
+    });
 }
 
-void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
+
+/*void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
     QSqlQuery query;
-    query.prepare("SELECT login FROM user_auth WHERE login LIKE :searchText");
-    query.bindValue(":searchText", searchText + "%");
+    query.prepare("SELECT login FROM user_auth WHERE login = :searchText");
+    query.bindValue(":searchText", searchText);
     if (query.exec()) {
         QTextStream stream(clientSocket);
         while (query.next()) {
             QString username = query.value(0).toString();
             stream << "search_result:" << username << '\n'; // Для каждой строки отправляем результат клиенту
+            //stream.flush();
+            qDebug() << username;
         }
         stream << "search_end\n"; // Сигнал о конце результатов поиска
         stream.flush();
     } else {
         qCritical() << "Search query failed:" << query.lastError();
+    }
+}*/
+
+void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
+    QSqlQuery query;
+    query.prepare("SELECT login FROM user_auth WHERE login LIKE :searchText");
+    query.bindValue(":searchText", "%" + searchText + "%");
+    if (query.exec()) {
+        QTextStream stream(clientSocket);
+        qDebug() << "Search query successful. Results for:" << searchText;
+        while (query.next()) {
+            QString username = query.value(0).toString();
+            stream << "search_result:" << username << '\n'; // Send each result to the client
+            qDebug() << "Found user:" << username; // Logging each found username
+        }
+        stream << "search_end\n"; // Signal the end of search results
+        stream.flush();
+    } else {
+        qCritical() << "Search query failed:" << query.lastError().text();
     }
 }
