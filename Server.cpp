@@ -147,26 +147,6 @@ void Server::onNewConnection() {
     });
 }
 
-
-/*void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
-    QSqlQuery query;
-    query.prepare("SELECT login FROM user_auth WHERE login = :searchText");
-    query.bindValue(":searchText", searchText);
-    if (query.exec()) {
-        QTextStream stream(clientSocket);
-        while (query.next()) {
-            QString username = query.value(0).toString();
-            stream << "search_result:" << username << '\n'; // Для каждой строки отправляем результат клиенту
-            //stream.flush();
-            qDebug() << username;
-        }
-        stream << "search_end\n"; // Сигнал о конце результатов поиска
-        stream.flush();
-    } else {
-        qCritical() << "Search query failed:" << query.lastError();
-    }
-}*/
-
 void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
     QSqlQuery query;
     query.prepare("SELECT login FROM user_auth WHERE login LIKE :searchText");
@@ -177,6 +157,7 @@ void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searc
         while (query.next()) {
             QString username = query.value(0).toString();
             stream << "search_result:" << username << '\n'; // Send each result to the client
+            stream.flush();
             qDebug() << "Found user:" << username; // Logging each found username
         }
         stream << "search_end\n"; // Signal the end of search results
