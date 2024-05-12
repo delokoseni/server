@@ -90,33 +90,6 @@ void Server::processLogin(QTcpSocket* clientSocket, const QString& username, con
     }
 }
 
-/*void Server::onNewConnection() {
-    QTcpSocket *clientSocket = this->nextPendingConnection();
-    connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
-        QTextStream stream(clientSocket);
-        QString message = stream.readAll().trimmed();
-        qDebug() << "New message received:" << message;
-
-        QStringList parts = message.split(":");
-        if(parts.count() >= 2) {
-            QString command = parts.first();
-            QString username = parts.at(1);
-            QString password = parts.at(2);
-
-            if(command == "register") {
-                processRegistration(clientSocket, username, password);
-            }
-            if (command == "login") {
-                processLogin(clientSocket, username, password);
-            }
-            if (command == "search") {
-                    QString searchText = parts.at(1);
-                    processSearchRequest(clientSocket, searchText);
-            }
-        }
-    });
-}*/
-
 void Server::onNewConnection() {
     QTcpSocket *clientSocket = this->nextPendingConnection();
     connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
