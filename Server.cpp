@@ -116,9 +116,46 @@ void Server::onNewConnection() {
             if(parts.count() < 2) return; // Для поиска нужно минимум 2 части
             QString searchText = parts.at(1);
             processSearchRequest(clientSocket, searchText);
-        }
+        } else
+            if (command == "create_chat" && parts.length() == 3) {
+                    QString chatName = parts.at(1);
+                    QString chatType = parts.at(2);
+                    int chatId = createChat(chatName, chatType);
+                    if (chatId != -1) {
+                        stream << "create_chat:success:" << chatId << '\n';
+                        //addUserToChat(chatId, user); два запроса айди
+                        //addUserToChat(chatId, user);
+                    } else {
+                        stream << "create_chat:fail\n";
+                    }
+                    stream.flush();
+                }
     });
 }
+
+int Server::createChat(const QString& chatName, const QString& chatType) {
+    QSqlQuery query;
+    qDebug() << "chatName: " << chatName << " chatType: " << chatType << "\n";
+    query.prepare("INSERT INTO chats (chat_name, chat_type) VALUES (:chat_name, :chat_type)");
+    query.bindValue(":chat_name", chatName);
+    query.bindValue(":chat_type", chatType);
+    if (!query.exec()) {
+        qCritical() << "Failed to create chat:" << query.lastError().text();
+        return -1;
+    }
+    return query.lastInsertId().toInt();
+}
+
+void Server::addUserToChat(const int chatId, const int userId) {
+    QSqlQuery query;
+    query.prepare("INSERT INTO chat_participants (chat_id, user_id) VALUES (:chat_id, :user_id)");
+    query.bindValue(":chat_id", chatId);
+    query.bindValue(":user_id", userId);
+    if (!query.exec()) {
+        qCritical() << "Failed to add user to chat:" << query.lastError().text();
+    }
+}
+
 
 void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
     QSqlQuery query;

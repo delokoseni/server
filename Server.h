@@ -21,11 +21,12 @@ public:
     bool validateUser(const QString& username, const QString& password);
     void processRegistration(QTcpSocket* clientSocket, const QString& username, const QString& password);
     void processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password);
+    int createChat(const QString& chatName, const QString& chatType);
 
 public slots:
     void onNewConnection();
     void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText);
-
+    void addUserToChat(const int chatId, const int userId);
 };
 
 #endif // SERVER_H
