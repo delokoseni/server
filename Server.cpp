@@ -117,14 +117,16 @@ void Server::onNewConnection() {
             QString searchText = parts.at(1);
             processSearchRequest(clientSocket, searchText);
         } else
-            if (command == "create_chat" && parts.length() == 3) {
+            if (command == "create_chat") {
                     QString chatName = parts.at(1);
                     QString chatType = parts.at(2);
+                    QString userName1 = parts.at(3);
+                    QString userName2 = parts.at(4);
                     int chatId = createChat(chatName, chatType);
                     if (chatId != -1) {
                         stream << "create_chat:success:" << chatId << '\n';
-                        //addUserToChat(chatId, user); два запроса айди
-                        //addUserToChat(chatId, user);
+                        addUserToChat(chatId, findUserID(userName1));
+                        addUserToChat(chatId, findUserID(userName2));
                     } else {
                         stream << "create_chat:fail\n";
                     }
@@ -156,6 +158,29 @@ void Server::addUserToChat(const int chatId, const int userId) {
     }
 }
 
+int Server::findUserID(const QString& userName)
+{
+    QSqlQuery query;
+    query.prepare("SELECT user_id FROM user_auth WHERE login = :userName");
+    query.bindValue(":userName", userName);
+    if (!query.exec())
+    {
+        qCritical() << "Failed to find user_id:" << query.lastError().text();
+        return -1;
+    }
+    else
+    {
+        if (query.next()) // Перемещаем курсор на следующую запись в результатах запроса.
+        {
+            return query.value(0).toInt(); // Теперь мы можем безопасно получить значение.
+        }
+        else
+        {
+            qCritical() << "User not found";
+            return -1;
+        }
+    }
+}
 
 void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
     QSqlQuery query;

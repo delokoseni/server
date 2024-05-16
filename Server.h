@@ -22,6 +22,7 @@ public:
     void processRegistration(QTcpSocket* clientSocket, const QString& username, const QString& password);
     void processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password);
     int createChat(const QString& chatName, const QString& chatType);
+    int findUserID(const QString& userName);
 
 public slots:
     void onNewConnection();
