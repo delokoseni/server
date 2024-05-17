@@ -21,8 +21,9 @@ public:
     bool validateUser(const QString& username, const QString& password);
     void processRegistration(QTcpSocket* clientSocket, const QString& username, const QString& password);
     void processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password);
-    int createChat(const QString& chatName, const QString& chatType);
+    int createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2);
     int findUserID(const QString& userName);
+    bool chatExistsBetweenUsers(const int userId1, const int userId2);
 
 public slots:
     void onNewConnection();

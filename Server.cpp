@@ -122,7 +122,7 @@ void Server::onNewConnection() {
                     QString chatType = parts.at(2);
                     QString userName1 = parts.at(3);
                     QString userName2 = parts.at(4);
-                    int chatId = createChat(chatName, chatType);
+                    int chatId = createChat(chatName, chatType, userName1, userName2);
                     if (chatId != -1) {
                         stream << "create_chat:success:" << chatId << '\n';
                         addUserToChat(chatId, findUserID(userName1));
@@ -135,8 +135,20 @@ void Server::onNewConnection() {
     });
 }
 
-int Server::createChat(const QString& chatName, const QString& chatType) {
+int Server::createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2) {
     QSqlQuery query;
+    int userId1 = findUserID(userName1);
+    int userId2 = findUserID(userName2);
+
+    if (userId1 == -1 || userId2 == -1) {
+        qCritical() << "One of the users does not exist";
+        return -1;
+    }
+
+    if (chatExistsBetweenUsers(userId1, userId2)) {
+        qCritical() << "Chat between these users already exists";
+        return -1;
+    }
     qDebug() << "chatName: " << chatName << " chatType: " << chatType << "\n";
     query.prepare("INSERT INTO chats (chat_name, chat_type) VALUES (:chat_name, :chat_type)");
     query.bindValue(":chat_name", chatName);
@@ -179,6 +191,20 @@ int Server::findUserID(const QString& userName)
             qCritical() << "User not found";
             return -1;
         }
+    }
+}
+
+bool Server::chatExistsBetweenUsers(const int userId1, const int userId2) {
+    QSqlQuery query;
+    query.prepare("SELECT chat_id FROM chat_participants WHERE user_id = :userId1 "
+                  "INTERSECT "
+                  "SELECT chat_id FROM chat_participants WHERE user_id = :userId2");
+    query.bindValue(":userId1", userId1);
+    query.bindValue(":userId2", userId2);
+    if (!query.exec() || !query.next()) {
+        return false; // Чата нет, можно создать новый
+    } else {
+        return true; // Чат между пользователями уже существует
     }
 }
 
