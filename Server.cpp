@@ -143,22 +143,25 @@ void Server::onNewConnection() {
 
 void Server::getChatsForUser(QTcpSocket* clientSocket, int userId) {
     QSqlQuery query;
-    query.prepare("SELECT c.chat_id, c.chat_name FROM chats c "
-                  "JOIN chat_participants cp ON cp.chat_id = c.chat_id "
-                  "WHERE cp.user_id = :user_id");
+    query.prepare("SELECT ua.login, c.chat_id FROM user_auth ua "
+                  "JOIN chat_participants cp ON cp.user_id = ua.user_id "
+                  "JOIN chats c ON c.chat_id = cp.chat_id "
+                  "WHERE c.chat_id IN (SELECT chat_id FROM chat_participants WHERE user_id = :user_id) "
+                  "AND ua.user_id != :user_id");
     query.bindValue(":user_id", userId);
     if (query.exec()) {
         QTextStream stream(clientSocket);
         while (query.next()) {
-            QString chatId = query.value(0).toString();
-            QString chatName = query.value(1).toString();
-            stream << "chat_list_item:" << chatId << ":" << chatName << '\n'; // Отправляем каждый результат клиенту
+            QString username = query.value(0).toString();
+            QString chatId = query.value(1).toString();
+            stream << "chat_list_item:" << chatId << ":" << username << '\n'; // Отправляем каждый результат клиенту
         }
         stream.flush();
     } else {
         qCritical() << "Failed to get chats for user:" << query.lastError().text();
     }
 }
+
 
 
 int Server::createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2) {
