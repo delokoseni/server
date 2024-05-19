@@ -298,13 +298,16 @@ void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searc
 
 void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId) {
     QSqlQuery query;
-    query.prepare("SELECT message_text FROM messages WHERE chat_id = :chatId ORDER BY timestamp_sent ASC");
+    // Добавляем выборку user_id сообщения в запрос
+    query.prepare("SELECT user_id, message_text FROM messages WHERE chat_id = :chatId ORDER BY timestamp_sent ASC");
     query.bindValue(":chatId", chatId);
     if (query.exec()) {
         QTextStream stream(clientSocket);
         while (query.next()) {
-            QString message = query.value(0).toString();
-            stream << "message_item:" << message << '\n'; // Отправляем каждое сообщение клиенту
+            int senderId = query.value(0).toInt(); // ID пользователя отправившего сообщение
+            QString message = query.value(1).toString();
+            // Добавляем user_id в конец каждого сообщения
+            stream << "message_item:" << message << ":" << senderId << '\n'; // 'user_id' в конце
         }
         stream << "end_of_messages\n"; // Отправляем сигнал конца передачи сообщений
         stream.flush();
@@ -312,3 +315,4 @@ void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId) {
         qCritical() << "Failed to get messages for chat:" << query.lastError().text();
     }
 }
+
