@@ -158,7 +158,12 @@ void Server::onNewConnection() {
                 if(parts.count() < 2) return;
                 int chatId = parts.at(1).toInt();
                 getMessagesForChat(clientSocket, chatId);
-        }
+            } else if (command == "get_user_id") {
+                if(parts.count() < 2) return;
+                QString login = parts.at(1);
+                getUserId(clientSocket, login);
+
+            }
     });
 }
 
@@ -183,7 +188,20 @@ void Server::getChatsForUser(QTcpSocket* clientSocket, int userId) {
     }
 }
 
-
+void Server::getUserId(QTcpSocket* clientSocket, const QString& login) {
+    QSqlQuery query;
+    query.prepare("SELECT user_id FROM user_auth WHERE login = :login");
+    query.bindValue(":login", login);
+    if (query.exec() && query.next()) {
+        int userId = query.value(0).toInt();
+        QTextStream stream(clientSocket);
+        stream << "user_id:" << userId << "\n";
+        stream.flush();
+        qDebug() << "UserID = " << userId << "\n";
+    } else {
+        qCritical() << "Failed to get user ID for login:" << query.lastError().text();
+    }
+}
 
 int Server::createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2) {
     QSqlQuery query;
