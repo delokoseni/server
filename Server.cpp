@@ -131,13 +131,30 @@ void Server::onNewConnection() {
                 }
                 stream.flush();
             } else if (command == "get_chats") {
-            if(parts.count() < 2) return;
-            QString username = parts.at(1);
-            int userId = findUserID(username);
-            if (userId != -1) {
-                getChatsForUser(clientSocket, userId);
+                if(parts.count() < 2) return;
+                QString username = parts.at(1);
+                int userId = findUserID(username);
+                if (userId != -1) {
+                    getChatsForUser(clientSocket, userId);
+                }
+            } else if (command == "send_message") {
+                if(parts.count() < 4) return; // Нужно минимум 4 части для отправки сообщения
+                int chatId = parts.at(1).toInt();
+                int userId = parts.at(2).toInt();
+                QString messageText = parts.at(3);
+
+                QSqlQuery query;
+                query.prepare("INSERT INTO messages (chat_id, user_id, message_text) VALUES (:chatId, :userId, :messageText)");
+                query.bindValue(":chatId", chatId);
+                query.bindValue(":userId", userId);
+                query.bindValue(":messageText", messageText);
+                if (query.exec()) {
+                    stream << "send_message:success\n";
+                } else {
+                    stream << "send_message:fail:" << query.lastError().text() << "\n";
+                }
+                stream.flush();
             }
-        }
     });
 }
 
