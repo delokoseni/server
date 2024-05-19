@@ -154,7 +154,11 @@ void Server::onNewConnection() {
                     stream << "send_message:fail:" << query.lastError().text() << "\n";
                 }
                 stream.flush();
-            }
+            } else if (command == "get_messages") {
+                if(parts.count() < 2) return;
+                int chatId = parts.at(1).toInt();
+                getMessagesForChat(clientSocket, chatId);
+        }
     });
 }
 
@@ -271,5 +275,22 @@ void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searc
         stream.flush();
     } else {
         qCritical() << "Search query failed:" << query.lastError().text();
+    }
+}
+
+void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId) {
+    QSqlQuery query;
+    query.prepare("SELECT message_text FROM messages WHERE chat_id = :chatId ORDER BY timestamp_sent ASC");
+    query.bindValue(":chatId", chatId);
+    if (query.exec()) {
+        QTextStream stream(clientSocket);
+        while (query.next()) {
+            QString message = query.value(0).toString();
+            stream << "message_item:" << message << '\n'; // Отправляем каждое сообщение клиенту
+        }
+        stream << "end_of_messages\n"; // Отправляем сигнал конца передачи сообщений
+        stream.flush();
+    } else {
+        qCritical() << "Failed to get messages for chat:" << query.lastError().text();
     }
 }
