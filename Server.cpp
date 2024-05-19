@@ -116,24 +116,50 @@ void Server::onNewConnection() {
             if(parts.count() < 2) return; // Для поиска нужно минимум 2 части
             QString searchText = parts.at(1);
             processSearchRequest(clientSocket, searchText);
-        } else
-            if (command == "create_chat") {
-                    QString chatName = parts.at(1);
-                    QString chatType = parts.at(2);
-                    QString userName1 = parts.at(3);
-                    QString userName2 = parts.at(4);
-                    int chatId = createChat(chatName, chatType, userName1, userName2);
-                    if (chatId != -1) {
-                        stream << "create_chat:success:" << chatId << '\n';
-                        addUserToChat(chatId, findUserID(userName1));
-                        addUserToChat(chatId, findUserID(userName2));
-                    } else {
-                        stream << "create_chat:fail\n";
-                    }
-                    stream.flush();
+        } else if (command == "create_chat") {
+                QString chatName = parts.at(1);
+                QString chatType = parts.at(2);
+                QString userName1 = parts.at(3);
+                QString userName2 = parts.at(4);
+                int chatId = createChat(chatName, chatType, userName1, userName2);
+                if (chatId != -1) {
+                    stream << "create_chat:success:" << chatId << '\n';
+                    addUserToChat(chatId, findUserID(userName1));
+                    addUserToChat(chatId, findUserID(userName2));
+                } else {
+                    stream << "create_chat:fail\n";
                 }
+                stream.flush();
+            } else if (command == "get_chats") {
+            if(parts.count() < 2) return;
+            QString username = parts.at(1);
+            int userId = findUserID(username);
+            if (userId != -1) {
+                getChatsForUser(clientSocket, userId);
+            }
+        }
     });
 }
+
+void Server::getChatsForUser(QTcpSocket* clientSocket, int userId) {
+    QSqlQuery query;
+    query.prepare("SELECT c.chat_id, c.chat_name FROM chats c "
+                  "JOIN chat_participants cp ON cp.chat_id = c.chat_id "
+                  "WHERE cp.user_id = :user_id");
+    query.bindValue(":user_id", userId);
+    if (query.exec()) {
+        QTextStream stream(clientSocket);
+        while (query.next()) {
+            QString chatId = query.value(0).toString();
+            QString chatName = query.value(1).toString();
+            stream << "chat_list_item:" << chatId << ":" << chatName << '\n'; // Отправляем каждый результат клиенту
+        }
+        stream.flush();
+    } else {
+        qCritical() << "Failed to get chats for user:" << query.lastError().text();
+    }
+}
+
 
 int Server::createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2) {
     QSqlQuery query;
