@@ -32,6 +32,9 @@ public slots:
     void onNewConnection();
     void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText);
     void addUserToChat(const int chatId, const int userId);
+
+private:
+    QHash<int, QTcpSocket*> userSockets;
 };
 
 #endif // SERVER_H
