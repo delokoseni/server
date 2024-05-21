@@ -3,7 +3,8 @@
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
+    int port = 3000;
     Server server;
-    server.startServer(3000); // Start server on port 3000
+    server.startServer(port);
     return app.exec();
 }

@@ -1,4 +1,5 @@
 #include "Server.h"
+#include "Logger.h"
 
 Server::Server(QObject *parent) : QTcpServer(parent) {
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
@@ -11,6 +12,7 @@ Server::Server(QObject *parent) : QTcpServer(parent) {
     }
 
     connect(this, &Server::newConnection, this, &Server::onNewConnection);
+    Logger::getInstance()->logToFile("Server is running\n");
 }
 
 bool Server::isLoginFree(const QString& username) {
