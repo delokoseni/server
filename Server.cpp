@@ -96,73 +96,86 @@ void Server::onNewConnection() {
         QTextStream stream(clientSocket);
         QString message = stream.readAll().trimmed();
         qDebug() << "New message received:" << message;
-
         QStringList parts = message.split(":");
         if(parts.isEmpty()) return; // Если сообщение пустое, то ничего не делаем
-
         QString command = parts.first();
-
-        if(command == "register" || command == "login") {
-            if(parts.count() < 3) return; // Для регистрации и входа нужно минимум 3 части
-            QString username = parts.at(1);
-            QString password = parts.at(2);
-
-            if(command == "register") {
-                processRegistration(clientSocket, username, password);
-            } else { // Здесь else, так как команда может быть только "login"
-                processLogin(clientSocket, username, password);
+            if(command == "register" || command == "login") {
+                if(parts.count() < 3) return; // Для регистрации и входа нужно минимум 3 части
+                QString username = parts.at(1);
+                QString password = parts.at(2);
+                if(command == "register")
+                {
+                    processRegistration(clientSocket, username, password);
+                }
+                else
+                { // Здесь else, так как команда может быть только "login"
+                    processLogin(clientSocket, username, password);
+                }
             }
-        } else if (command == "search") {
-            if(parts.count() < 2) return; // Для поиска нужно минимум 2 части
-            QString searchText = parts.at(1);
-            processSearchRequest(clientSocket, searchText);
-        } else if (command == "create_chat") {
+            else if (command == "search")
+            {
+                if(parts.count() < 2) return; // Для поиска нужно минимум 2 части
+                QString searchText = parts.at(1);
+                processSearchRequest(clientSocket, searchText);
+            }
+            else if (command == "create_chat") {
                 QString chatName = parts.at(1);
                 QString chatType = parts.at(2);
                 QString userName1 = parts.at(3);
                 QString userName2 = parts.at(4);
                 int chatId = createChat(chatName, chatType, userName1, userName2);
-                if (chatId != -1) {
+                if (chatId != -1)
+                {
                     stream << "create_chat:success:" << chatId << '\n';
                     addUserToChat(chatId, findUserID(userName1));
                     addUserToChat(chatId, findUserID(userName2));
-                } else {
+                }
+                else
+                {
                     stream << "create_chat:fail\n";
                 }
                 stream.flush();
-            } else if (command == "get_chats") {
+            } else if (command == "get_chats")
+            {
                 if(parts.count() < 2) return;
                 QString username = parts.at(1);
                 int userId = findUserID(username);
-                if (userId != -1) {
+                if (userId != -1)
+                {
                     getChatsForUser(clientSocket, userId);
                 }
-            } else if (command == "send_message") {
+            } else if (command == "send_message")
+            {
                 if(parts.count() < 4) return; // Нужно минимум 4 части для отправки сообщения
                 int chatId = parts.at(1).toInt();
                 int userId = parts.at(2).toInt();
                 QString messageText = parts.at(3);
-
                 QSqlQuery query;
                 query.prepare("INSERT INTO messages (chat_id, user_id, message_text) VALUES (:chatId, :userId, :messageText)");
                 query.bindValue(":chatId", chatId);
                 query.bindValue(":userId", userId);
                 query.bindValue(":messageText", messageText);
-                if (query.exec()) {
+                if (query.exec())
+                {
                     stream << "send_message:success\n";
-                } else {
+                }
+                else
+                {
                     stream << "send_message:fail:" << query.lastError().text() << "\n";
                 }
                 stream.flush();
-            } else if (command == "get_messages") {
+            }
+            else if (command == "get_messages")
+            {
                 if(parts.count() < 2) return;
                 int chatId = parts.at(1).toInt();
                 getMessagesForChat(clientSocket, chatId);
-            } else if (command == "get_user_id") {
+            }
+            else if (command == "get_user_id")
+            {
                 if(parts.count() < 2) return;
                 QString login = parts.at(1);
                 getUserId(clientSocket, login);
-
             }
     });
 }
