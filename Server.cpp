@@ -12,7 +12,7 @@ Server::Server(QObject *parent) : QTcpServer(parent) {
     }
 
     connect(this, &Server::newConnection, this, &Server::onNewConnection);
-    Logger::getInstance()->logToFile("Server is running\n");
+    Logger::getInstance()->logToFile("Server is running");
 }
 
 bool Server::isLoginFree(const QString& username) {
@@ -72,6 +72,7 @@ void Server::processRegistration(QTcpSocket* clientSocket, const QString& userna
         QTextStream stream(clientSocket);
         stream << "register:success\n";
         stream.flush(); // Гарантируем отправку сообщения
+        Logger::getInstance()->logToFile("Registered user " + username);
     } else {
         QTextStream stream(clientSocket);
         stream << "register:fail:username taken\n";
@@ -85,6 +86,7 @@ void Server::processLogin(QTcpSocket* clientSocket, const QString& username, con
         QTextStream stream(clientSocket);
         stream << "login:success\n";
         stream.flush(); // Гарантируем отправку сообщения
+        Logger::getInstance()->logToFile("User" + username + "is logged in");
     } else {
         QTextStream stream(clientSocket);
         stream << "login:fail\n";
@@ -160,6 +162,11 @@ void Server::onNewConnection() {
                 if (query.exec())
                 {
                     stream << "send_message:success\n";
+                    QString logMessage = QString("User with ID %1 sent a message to chat with ID %2.\nMessage: %3")
+                        .arg(QString::number(userId))
+                        .arg(QString::number(chatId))
+                        .arg(messageText);
+                    Logger::getInstance()->logToFile(logMessage);
                 }
                 else
                 {
