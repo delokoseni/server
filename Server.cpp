@@ -2,6 +2,26 @@
 #include "Logger.h"
 
 Server::Server(QObject *parent) : QTcpServer(parent) {
+    window = new QWidget();
+    window->resize(window_width, window_height);
+    statusLabel = new QLabel("Сервер работает.");
+    statusLabel->setAlignment(Qt::AlignCenter);  // Выравнивание текста по центру
+    statusLabel->setStyleSheet("QLabel { color : green; }");
+    logViewer = new QPlainTextEdit();
+    logViewer->setReadOnly(true);
+    logFileButton = new QPushButton("Выбрать файл для логгирования");
+    layout = new QFormLayout(window);
+
+    layout->addRow(statusLabel);
+    layout->addWidget(logViewer);
+    layout->addWidget(logFileButton);
+
+    window->setLayout(layout);
+    window->setWindowTitle("Сервер");
+    window->show();
+
+    connect(logFileButton, &QPushButton::clicked, this, &Server::selectLogFile);
+
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
     db.setDatabaseName(QDir::homePath() + "/messenger.db");
 
@@ -13,6 +33,24 @@ Server::Server(QObject *parent) : QTcpServer(parent) {
 
     connect(this, &Server::newConnection, this, &Server::onNewConnection);
     Logger::getInstance()->logToFile("Server is running");
+
+    logUpdateTimer = new QTimer(this);
+    connect(logUpdateTimer, &QTimer::timeout, this, &Server::updateLogViewer);
+    logUpdateTimer->start(1000);
+}
+
+Server::~Server() {
+    Logger::getInstance()->logToFile("Server is turned off");
+    if (window) {
+        delete window;
+    }
+}
+
+void Server::selectLogFile() {
+    QString filename = QFileDialog::getOpenFileName(window, tr("Открыть файл"), QDir::homePath(), tr("Log Files (*.txt)"));
+    if(!filename.isEmpty()) {
+        Logger::getInstance()->setLogFile(filename);
+    }
 }
 
 bool Server::isLoginFree(const QString& username) {
@@ -86,7 +124,7 @@ void Server::processLogin(QTcpSocket* clientSocket, const QString& username, con
         QTextStream stream(clientSocket);
         stream << "login:success\n";
         stream.flush(); // Гарантируем отправку сообщения
-        Logger::getInstance()->logToFile("User" + username + "is logged in");
+        Logger::getInstance()->logToFile("User " + username + " is logged in");
     } else {
         QTextStream stream(clientSocket);
         stream << "login:fail\n";
@@ -338,3 +376,13 @@ void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId) {
     }
 }
 
+void Server::updateLogViewer() {
+    QFile logFile(currentLogFilePath);
+    if (logFile.open(QIODevice::ReadOnly)) {
+        QTextStream stream(&logFile);
+        logViewer->setPlainText(stream.readAll());
+        logFile.close();
+        QScrollBar *scrollBar = logViewer->verticalScrollBar();
+        scrollBar->setValue(scrollBar->maximum());
+    }
+}

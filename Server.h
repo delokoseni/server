@@ -1,6 +1,11 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include <QWidget>
+#include <QLabel>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QFileDialog>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QCoreApplication>
@@ -9,12 +14,17 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDir>
+#include <QPlainTextEdit>
+#include <QFormLayout>
+#include <QTimer>
+#include <QScrollBar>
 
 class Server : public QTcpServer {
     Q_OBJECT
 
 public:
     Server(QObject *parent = nullptr);
+    ~Server();
     bool isLoginFree(const QString& username);
     void addUserToDatabase(const QString& username, const QString& password);
     void startServer(int port);
@@ -32,9 +42,19 @@ public slots:
     void onNewConnection();
     void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText);
     void addUserToChat(const int chatId, const int userId);
+    void selectLogFile();
 
 private:
     QHash<int, QTcpSocket*> userSockets;
+    QWidget* window;
+    QLabel* statusLabel;
+    QPushButton* logFileButton;
+    QFormLayout* layout;
+    unsigned int window_width = 450, window_height = 300;
+    QPlainTextEdit* logViewer;
+    QTimer* logUpdateTimer;
+    QString currentLogFilePath = QDir::homePath() + "/default_log.txt";
+    void updateLogViewer();
 };
 
 #endif // SERVER_H
