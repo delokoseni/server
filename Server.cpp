@@ -4,15 +4,23 @@
 Server::Server(QObject *parent) : QTcpServer(parent) {
     window = new QWidget();
     window->resize(window_width, window_height);
+
+    logFileNameLabel = new QLabel(tr("Файл логов: %1").arg(QFileInfo(currentLogFilePath).fileName()));
+    logFileNameLabel->setAlignment(Qt::AlignRight);
     statusLabel = new QLabel("Сервер работает.");
-    statusLabel->setAlignment(Qt::AlignCenter);  // Выравнивание текста по центру
+    statusLabel->setAlignment(Qt::AlignLeft);  // Выравнивание текста по центру
     statusLabel->setStyleSheet("QLabel { color : green; }");
     logViewer = new QPlainTextEdit();
     logViewer->setReadOnly(true);
     logFileButton = new QPushButton("Выбрать файл для логгирования");
-    layout = new QFormLayout(window);
+    layout = new QVBoxLayout(window);
 
-    layout->addRow(statusLabel);
+    QHBoxLayout *headerLayout = new QHBoxLayout();
+    headerLayout->addWidget(logFileNameLabel);
+    headerLayout->addStretch();  // Добавление растяжения для разделения меток
+    headerLayout->addWidget(statusLabel);
+
+    layout->addLayout(headerLayout);
     layout->addWidget(logViewer);
     layout->addWidget(logFileButton);
 
@@ -43,13 +51,6 @@ Server::~Server() {
     Logger::getInstance()->logToFile("Server is turned off");
     if (window) {
         delete window;
-    }
-}
-
-void Server::selectLogFile() {
-    QString filename = QFileDialog::getOpenFileName(window, tr("Открыть файл"), QDir::homePath(), tr("Log Files (*.txt)"));
-    if(!filename.isEmpty()) {
-        Logger::getInstance()->setLogFile(filename);
     }
 }
 
@@ -384,5 +385,16 @@ void Server::updateLogViewer() {
         logFile.close();
         QScrollBar *scrollBar = logViewer->verticalScrollBar();
         scrollBar->setValue(scrollBar->maximum());
+    }
+}
+
+void Server::selectLogFile() {
+    QString filename = QFileDialog::getOpenFileName(window, tr("Открыть файл"), QDir::homePath(), tr("Log Files (*.txt)"));
+    if(!filename.isEmpty()) {
+        Logger::getInstance()->setLogFile(filename);
+        currentLogFilePath = filename;
+        updateLogViewer();  // Сразу обновляем содержимое лога в интерфейсе
+        // Здесь же обновляем надпись с именем файла логов
+        logFileNameLabel->setText(tr("Файл логов: %1").arg(QFileInfo(filename).fileName()));
     }
 }

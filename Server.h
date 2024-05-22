@@ -42,19 +42,20 @@ public slots:
     void onNewConnection();
     void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText);
     void addUserToChat(const int chatId, const int userId);
-    void selectLogFile();
 
 private:
     QHash<int, QTcpSocket*> userSockets;
     QWidget* window;
     QLabel* statusLabel;
     QPushButton* logFileButton;
-    QFormLayout* layout;
+    QVBoxLayout* layout;
     unsigned int window_width = 450, window_height = 300;
     QPlainTextEdit* logViewer;
     QTimer* logUpdateTimer;
     QString currentLogFilePath = QDir::homePath() + "/default_log.txt";
+    QLabel* logFileNameLabel;
     void updateLogViewer();
+    void selectLogFile();
 };
 
 #endif // SERVER_H
