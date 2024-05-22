@@ -127,11 +127,34 @@ void Server::processLogin(QTcpSocket* clientSocket, const QString& username, con
         QTextStream stream(clientSocket);
         stream << "login:success\n";
         stream.flush(); // Гарантируем отправку сообщения
+        connect(clientSocket, &QTcpSocket::disconnected, this, &Server::onClientDisconnected);
         Logger::getInstance()->logToFile("User " + username + " is logged in");
     } else {
         QTextStream stream(clientSocket);
         stream << "login:fail\n";
         stream.flush(); // Гарантируем отправку сообщения
+    }
+}
+
+void Server::onClientDisconnected() {
+    QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
+    if (clientSocket) {
+        int userId = 0;
+        auto it = userSockets.begin();
+        while (it != userSockets.end()) {
+            if (it.value() == clientSocket) {
+                userId = it.key();
+                // Теперь, когда нашли userId, можно удалить запись
+                it = userSockets.erase(it);
+                break;
+            } else {
+                ++it;
+            }
+        }
+        QString logMessage = QString("User with ID %1 disconnected").arg(QString::number(userId));
+        Logger::getInstance()->logToFile(logMessage);
+        // Закрываем и удаляем сокет
+        clientSocket->deleteLater();
     }
 }
 

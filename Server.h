@@ -57,6 +57,7 @@ private:
     void updateLogViewer();
     void selectLogFile();
     int getUserID(const QString& login);
+    void onClientDisconnected();
 };
 
 #endif // SERVER_H
