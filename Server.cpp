@@ -287,24 +287,46 @@ void Server::onNewConnection() {
 
 void Server::getChatsForUser(QTcpSocket* clientSocket, int userId) {
     QSqlQuery query;
-    query.prepare("SELECT ua.login, c.chat_id FROM user_auth ua "
-                  "JOIN chat_participants cp ON cp.user_id = ua.user_id "
-                  "JOIN chats c ON c.chat_id = cp.chat_id "
-                  "WHERE c.chat_id IN (SELECT chat_id FROM chat_participants WHERE user_id = :user_id) "
-                  "AND ua.user_id != :user_id");
+    // Изменяем запрос, чтобы он также проверял наличие непрочитанных сообщений для каждого чата и пользователя
+    query.prepare(R"(
+        SELECT
+            ua.login, c.chat_id,
+            EXISTS (
+                SELECT 1
+                FROM messages m
+                WHERE m.chat_id = c.chat_id AND m.user_id != :user_id
+                AND m.timestamp_read IS NULL
+            ) AS has_unread_messages
+        FROM user_auth ua
+        JOIN chat_participants cp ON cp.user_id = ua.user_id
+        JOIN chats c ON c.chat_id = cp.chat_id
+        WHERE c.chat_id IN (
+            SELECT chat_id
+            FROM chat_participants
+            WHERE user_id = :user_id
+        )
+        AND ua.user_id != :user_id
+    )");
+
     query.bindValue(":user_id", userId);
+
     if (query.exec()) {
         QTextStream stream(clientSocket);
         while (query.next()) {
             QString username = query.value(0).toString();
             QString chatId = query.value(1).toString();
-            stream << "chat_list_item:" << chatId << ":" << username << '\n'; // Отправляем каждый результат клиенту
+            bool hasUnreadMessages = query.value(2).toBool();
+
+            // Отправляем информацию о каждом чате, включая наличие непрочитанных сообщений
+            stream << "chat_list_item:" << chatId << ":" << username
+                   << ":" << (hasUnreadMessages ? "has_new_messages" : "no_new_messages") << '\n';
         }
         stream.flush();
     } else {
         qCritical() << "Failed to get chats for user:" << query.lastError().text();
     }
 }
+
 
 void Server::getUserId(QTcpSocket* clientSocket, const QString& login) {
     QSqlQuery query;
