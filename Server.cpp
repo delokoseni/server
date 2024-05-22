@@ -136,10 +136,15 @@ void Server::processLogin(QTcpSocket* clientSocket, const QString& username, con
 void Server::onNewConnection() {
     QTcpSocket *clientSocket = this->nextPendingConnection();
     connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
+
         QTextStream stream(clientSocket);
         QString message = stream.readAll().trimmed();
         qDebug() << "New message received:" << message;
-        QStringList parts = message.split(":");
+        QStringList smallMessage = message.trimmed().split("\n", QString::SkipEmptyParts);
+        for(const QString &line : smallMessage)
+        {
+            qDebug() << "New message received:" << line;
+        QStringList parts = line.split(":");
         if(parts.isEmpty()) return; // Если сообщение пустое, то ничего не делаем
         QString command = parts.first();
             if(command == "register" || command == "login") {
@@ -225,6 +230,7 @@ void Server::onNewConnection() {
                 QString login = parts.at(1);
                 getUserId(clientSocket, login);
             }
+        }
     });
 }
 
