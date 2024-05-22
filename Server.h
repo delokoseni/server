@@ -40,7 +40,7 @@ public:
 
 public slots:
     void onNewConnection();
-    void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText);
+    void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText, const QString& currentUserLogin);
     void addUserToChat(const int chatId, const int userId);
 
 private:

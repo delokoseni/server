@@ -139,7 +139,6 @@ void Server::onNewConnection() {
 
         QTextStream stream(clientSocket);
         QString message = stream.readAll().trimmed();
-        qDebug() << "New message received:" << message;
         QStringList smallMessage = message.trimmed().split("\n", QString::SkipEmptyParts);
         for(const QString &line : smallMessage)
         {
@@ -162,10 +161,12 @@ void Server::onNewConnection() {
             }
             else if (command == "search")
             {
-                if(parts.count() < 2) return; // Для поиска нужно минимум 2 части
+                if(parts.count() < 3) return; // Теперь требуются минимум 3 части: команда, текст поиска и логин пользователя
                 QString searchText = parts.at(1);
-                processSearchRequest(clientSocket, searchText);
+                QString currentUserLogin = parts.at(2);
+                processSearchRequest(clientSocket, searchText, currentUserLogin);
             }
+
             else if (command == "create_chat") {
                 QString chatName = parts.at(1);
                 QString chatType = parts.at(2);
@@ -343,20 +344,22 @@ bool Server::chatExistsBetweenUsers(const int userId1, const int userId2) {
     }
 }
 
-void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText) {
+void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText, const QString& currentUserLogin) {
     QSqlQuery query;
-    query.prepare("SELECT login FROM user_auth WHERE login LIKE :searchText");
+    // Добавляем условие, чтобы исключить из результатов логин текущего пользователя
+    query.prepare("SELECT login FROM user_auth WHERE login LIKE :searchText AND login != :currentUserLogin");
     query.bindValue(":searchText", "%" + searchText + "%");
+    query.bindValue(":currentUserLogin", currentUserLogin);
     if (query.exec()) {
         QTextStream stream(clientSocket);
         qDebug() << "Search query successful. Results for:" << searchText;
         while (query.next()) {
             QString username = query.value(0).toString();
-            stream << "search_result:" << username << '\n'; // Send each result to the client
+            stream << "search_result:" << username << '\n'; // Отправляем каждый результат клиенту
             stream.flush();
-            qDebug() << "Found user:" << username; // Logging each found username
+            qDebug() << "Found user:" << username; // Выводим в лог найденного пользователя
         }
-        stream << "search_end\n"; // Signal the end of search results
+        stream << "search_end\n"; // Сигнал конца результатов поиска
         stream.flush();
     } else {
         qCritical() << "Search query failed:" << query.lastError().text();
