@@ -221,9 +221,10 @@ void Server::onNewConnection() {
             }
             else if (command == "get_messages")
             {
-                if(parts.count() < 2) return;
+                if(parts.count() < 3) return; // Теперь требуется минимум 3 части: команда, chatId и userId
                 int chatId = parts.at(1).toInt();
-                getMessagesForChat(clientSocket, chatId);
+                int userId = parts.at(2).toInt();
+                getMessagesForChat(clientSocket, chatId, userId);
             }
             else if (command == "get_user_id")
             {
@@ -366,18 +367,41 @@ void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searc
     }
 }
 
-void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId) {
+void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId) {
+    bool logIsDone = false;
     QSqlQuery query;
-    // Добавляем выборку user_id сообщения в запрос
-    query.prepare("SELECT user_id, message_text FROM messages WHERE chat_id = :chatId ORDER BY timestamp_sent ASC");
+    // Запрос для получения сообщений чата
+    query.prepare("SELECT message_id, user_id, message_text, timestamp_sent, timestamp_read FROM messages WHERE chat_id = :chatId ORDER BY timestamp_sent ASC");
     query.bindValue(":chatId", chatId);
+
     if (query.exec()) {
         QTextStream stream(clientSocket);
         while (query.next()) {
-            int senderId = query.value(0).toInt(); // ID пользователя отправившего сообщение
-            QString message = query.value(1).toString();
-            // Добавляем user_id в конец каждого сообщения
-            stream << "message_item:" << message << ":" << senderId << '\n'; // 'user_id' в конце
+            int messageId = query.value(0).toInt();
+            int senderId = query.value(1).toInt();
+            QString message = query.value(2).toString();
+            // Включаем время прочтения в запрос для проверки
+            QVariant timestampReadVar = query.value(4);
+            bool messageAlreadyRead = !timestampReadVar.isNull();
+
+            // Если получатель не является отправителем и сообщение не было прочитано
+            if (userId != senderId && !messageAlreadyRead) {
+                QSqlQuery updateTimestampQuery;
+                updateTimestampQuery.prepare("UPDATE messages SET timestamp_read = CURRENT_TIMESTAMP WHERE message_id = :messageId AND timestamp_read IS NULL");
+                updateTimestampQuery.bindValue(":messageId", messageId);
+                updateTimestampQuery.exec();
+            }
+            if(!logIsDone && userId != senderId && !messageAlreadyRead)
+            {
+                QString logMessage = QString("User with ID %1 read messages from user with ID %2 in chat with ID %3.")
+                    .arg(QString::number(userId))
+                    .arg(QString::number(senderId))
+                    .arg(QString::number(chatId));
+                Logger::getInstance()->logToFile(logMessage);
+            }
+
+            // Отправка сообщений клиенту без временной метки (для сохранения изначального формата ответа)
+            stream << "message_item:" << message << ":" << senderId << '\n';
         }
         stream << "end_of_messages\n"; // Отправляем сигнал конца передачи сообщений
         stream.flush();
@@ -385,6 +409,7 @@ void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId) {
         qCritical() << "Failed to get messages for chat:" << query.lastError().text();
     }
 }
+
 
 void Server::updateLogViewer() {
     QFile logFile(currentLogFilePath);

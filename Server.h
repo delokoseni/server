@@ -35,7 +35,7 @@ public:
     int findUserID(const QString& userName);
     bool chatExistsBetweenUsers(const int userId1, const int userId2);
     void getChatsForUser(QTcpSocket* clientSocket, int userId);
-    void getMessagesForChat(QTcpSocket* clientSocket, int chatId);
+    void getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId);
     void getUserId(QTcpSocket* clientSocket, const QString& login);
 
 public slots:
