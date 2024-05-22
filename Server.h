@@ -18,6 +18,7 @@
 #include <QFormLayout>
 #include <QTimer>
 #include <QScrollBar>
+#include <QMessageBox>
 
 class Server : public QTcpServer {
     Q_OBJECT
@@ -58,6 +59,7 @@ private:
     void selectLogFile();
     int getUserID(const QString& login);
     void onClientDisconnected();
+
 };
 
 #endif // SERVER_H

@@ -49,6 +49,15 @@ Server::Server(QObject *parent) : QTcpServer(parent) {
 
 Server::~Server() {
     Logger::getInstance()->logToFile("Server is turned off");
+    // Закрытие всех клиентских сокетов
+    for (QTcpSocket* socket : qAsConst(userSockets)) {
+        socket->close();
+        socket->deleteLater();
+    }
+    // Остановка сервера, если он был запущен
+    if (isListening()) {
+            close();
+    }
     if (window) {
         delete window;
     }
@@ -514,3 +523,4 @@ void Server::selectLogFile() {
         logFileNameLabel->setText(tr("Файл логов: %1").arg(QFileInfo(filename).fileName()));
     }
 }
+
