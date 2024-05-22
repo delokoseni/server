@@ -122,6 +122,8 @@ void Server::processRegistration(QTcpSocket* clientSocket, const QString& userna
 
 void Server::processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password) {
     if(validateUser(username, password)) {
+        qDebug() << "user socket " << clientSocket << "\n";
+        userSockets.insert(getUserID(username), clientSocket);
         QTextStream stream(clientSocket);
         stream << "login:success\n";
         stream.flush(); // Гарантируем отправку сообщения
@@ -212,6 +214,30 @@ void Server::onNewConnection() {
                         .arg(QString::number(chatId))
                         .arg(messageText);
                     Logger::getInstance()->logToFile(logMessage);
+                    QSqlQuery participantsQuery;
+                    participantsQuery.prepare("SELECT user_id FROM chat_participants WHERE chat_id = :chatId AND user_id != :senderId");
+                    participantsQuery.bindValue(":chatId", chatId);
+                    participantsQuery.bindValue(":senderId", userId);
+                    if (participantsQuery.exec()) {
+                            while (participantsQuery.next()) {
+                                int participantId = participantsQuery.value(0).toInt();
+
+                                // Если для этого userId есть открытое подключение
+                                if (userSockets.contains(participantId)) {
+                                    QTcpSocket* recipientSocket = userSockets[participantId];
+                                    QTextStream recipientStream(recipientSocket);
+
+                                    // Отправляем уведомление об новом сообщении
+                                    recipientStream << "new_message_in_chat:" << chatId << "\n";
+                                    recipientStream.flush();
+
+                                    // Выводим информацию на сервере
+                                    qDebug() << "Notification sent to user ID" << participantId << "about new message in chat ID" << chatId;
+                                }
+                            }
+                        } else {
+                            qCritical() << "Failed to query chat participants:" << participantsQuery.lastError().text();
+                        }
                 }
                 else
                 {
@@ -270,6 +296,17 @@ void Server::getUserId(QTcpSocket* clientSocket, const QString& login) {
     } else {
         qCritical() << "Failed to get user ID for login:" << query.lastError().text();
     }
+}
+
+int Server::getUserID(const QString& login)
+{
+    QSqlQuery query;
+    query.prepare("SELECT user_id FROM user_auth WHERE login = :login");
+    query.bindValue(":login", login);
+    if (query.exec() && query.next())
+        return query.value(0).toInt();
+    else
+        return 0;
 }
 
 int Server::createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2) {

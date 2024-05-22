@@ -56,6 +56,7 @@ private:
     QLabel* logFileNameLabel;
     void updateLogViewer();
     void selectLogFile();
+    int getUserID(const QString& login);
 };
 
 #endif // SERVER_H
