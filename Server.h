@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QPlainTextEdit>
 #include <QTimer>
+#include <QHBoxLayout>
 
 
 class Server : public QTcpServer
@@ -28,6 +29,7 @@ private:
     QTimer* logUpdateTimer;
     QString currentLogFilePath = QDir::homePath() + "/default_log.txt";
     QLabel* logFileNameLabel;
+    QHBoxLayout *headerLayout;
 
     void updateLogViewer();
     void selectLogFile();
@@ -46,6 +48,8 @@ private:
     void getChatsForUser(QTcpSocket* clientSocket, int userId);
     void getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId);
     void getUserId(QTcpSocket* clientSocket, const QString& login);
+    void setupUI();
+    void connectSignals();
 
 public:
     Server(QObject *parent = nullptr);

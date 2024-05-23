@@ -11,9 +11,23 @@
 
 Server::Server(QObject *parent) : QTcpServer(parent)
 {
+    setupUI();
+    connectSignals();
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+    db.setDatabaseName(QDir::homePath() + "/messenger.db");
+    if (!db.open())
+    {
+        qCritical() << "Could not connect to database:" << db.lastError().text();
+        exit(1);
+    }
+    Logger::getInstance()->logToFile("Server is running");
+    logUpdateTimer->start(1000);
+}
+
+void Server::setupUI()
+{
     window = new QWidget();
     window->resize(window_width, window_height);
-
     logFileNameLabel = new QLabel(tr("Файл логов: %1").arg(QFileInfo(currentLogFilePath).fileName()));
     logFileNameLabel->setAlignment(Qt::AlignRight);
     statusLabel = new QLabel("Сервер работает.");
@@ -23,37 +37,24 @@ Server::Server(QObject *parent) : QTcpServer(parent)
     logViewer->setReadOnly(true);
     logFileButton = new QPushButton("Выбрать файл для логгирования");
     layout = new QVBoxLayout(window);
-
-    QHBoxLayout *headerLayout = new QHBoxLayout();
+    headerLayout = new QHBoxLayout();
     headerLayout->addWidget(logFileNameLabel);
     headerLayout->addStretch();
     headerLayout->addWidget(statusLabel);
-
     layout->addLayout(headerLayout);
     layout->addWidget(logViewer);
     layout->addWidget(logFileButton);
-
     window->setLayout(layout);
     window->setWindowTitle("Сервер");
     window->show();
-
-    connect(logFileButton, &QPushButton::clicked, this, &Server::selectLogFile);
-
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName(QDir::homePath() + "/messenger.db");
-
-    if (!db.open())
-    {
-        qCritical() << "Could not connect to database:" << db.lastError().text();
-        exit(1);
-    }
-
-    connect(this, &Server::newConnection, this, &Server::onNewConnection);
-    Logger::getInstance()->logToFile("Server is running");
-
     logUpdateTimer = new QTimer(this);
+}
+
+void Server::connectSignals()
+{
+    connect(logFileButton, &QPushButton::clicked, this, &Server::selectLogFile);
+    connect(this, &Server::newConnection, this, &Server::onNewConnection);
     connect(logUpdateTimer, &QTimer::timeout, this, &Server::updateLogViewer);
-    logUpdateTimer->start(1000);
 }
 
 Server::~Server()
@@ -205,7 +206,6 @@ void Server::onNewConnection()
     QTcpSocket *clientSocket = this->nextPendingConnection();
     connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]()
     {
-
         QTextStream stream(clientSocket);
         QString message = stream.readAll().trimmed();
         QStringList smallMessage = message.trimmed().split("\n", QString::SkipEmptyParts);
@@ -515,7 +515,6 @@ void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId
     QSqlQuery query;
     query.prepare("SELECT message_id, user_id, message_text, timestamp_sent, timestamp_read FROM messages WHERE chat_id = :chatId ORDER BY timestamp_sent ASC");
     query.bindValue(":chatId", chatId);
-
     if (query.exec())
     {
         QTextStream stream(clientSocket);
@@ -524,10 +523,8 @@ void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId
             int messageId = query.value(0).toInt();
             int senderId = query.value(1).toInt();
             QString message = query.value(2).toString();
-
             QVariant timestampReadVar = query.value(4);
             bool messageAlreadyRead = !timestampReadVar.isNull();
-
             if (userId != senderId && !messageAlreadyRead)
             {
                 QSqlQuery updateTimestampQuery;
@@ -543,7 +540,6 @@ void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId
                     .arg(QString::number(chatId));
                 Logger::getInstance()->logToFile(logMessage);
             }
-
             stream << "message_item:" << message << ":" << senderId << '\n';
         }
         stream << "end_of_messages\n";
