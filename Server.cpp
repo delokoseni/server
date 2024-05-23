@@ -1,14 +1,23 @@
 #include "Server.h"
 #include "Logger.h"
 
-Server::Server(QObject *parent) : QTcpServer(parent) {
+#include <QFileDialog>
+#include <QTextStream>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QScrollBar>
+#include <QMessageBox>
+
+Server::Server(QObject *parent) : QTcpServer(parent)
+{
     window = new QWidget();
     window->resize(window_width, window_height);
 
     logFileNameLabel = new QLabel(tr("Файл логов: %1").arg(QFileInfo(currentLogFilePath).fileName()));
     logFileNameLabel->setAlignment(Qt::AlignRight);
     statusLabel = new QLabel("Сервер работает.");
-    statusLabel->setAlignment(Qt::AlignLeft);  // Выравнивание текста по центру
+    statusLabel->setAlignment(Qt::AlignLeft);
     statusLabel->setStyleSheet("QLabel { color : green; }");
     logViewer = new QPlainTextEdit();
     logViewer->setReadOnly(true);
@@ -17,7 +26,7 @@ Server::Server(QObject *parent) : QTcpServer(parent) {
 
     QHBoxLayout *headerLayout = new QHBoxLayout();
     headerLayout->addWidget(logFileNameLabel);
-    headerLayout->addStretch();  // Добавление растяжения для разделения меток
+    headerLayout->addStretch();
     headerLayout->addWidget(statusLabel);
 
     layout->addLayout(headerLayout);
@@ -47,23 +56,26 @@ Server::Server(QObject *parent) : QTcpServer(parent) {
     logUpdateTimer->start(1000);
 }
 
-Server::~Server() {
+Server::~Server()
+{
     Logger::getInstance()->logToFile("Server is turned off");
-    // Закрытие всех клиентских сокетов
-    for (QTcpSocket* socket : qAsConst(userSockets)) {
+    for (QTcpSocket* socket : qAsConst(userSockets))
+    {
         socket->close();
         socket->deleteLater();
     }
-    // Остановка сервера, если он был запущен
-    if (isListening()) {
+    if (isListening())
+    {
             close();
     }
-    if (window) {
+    if (window)
+    {
         delete window;
     }
 }
 
-bool Server::isLoginFree(const QString& username) {
+bool Server::isLoginFree(const QString& username)
+{
     QSqlQuery query;
     query.prepare("SELECT COUNT(*) FROM user_auth WHERE login = :login");
     query.bindValue(":login", username);
@@ -79,97 +91,120 @@ bool Server::isLoginFree(const QString& username) {
     return false;
 }
 
-void Server::addUserToDatabase(const QString& username, const QString& password) {
+void Server::addUserToDatabase(const QString& username, const QString& password)
+{
     QSqlQuery query;
     query.prepare("INSERT INTO user_auth (login, password) VALUES (:login, :password)");
     query.bindValue(":login", username);
     query.bindValue(":password", password);
-    if (!query.exec()) {
+    if (!query.exec())
+    {
         qCritical() << "Failed to add user to database:" << query.lastError().text();
-    } else {
+    } else
+    {
         qDebug() << "User" << username << "successfully added.";
     }
 }
 
-void Server::startServer(int port) {
-    if (!this->listen(QHostAddress::Any, port)) {
+void Server::startServer(int port)
+{
+    if (!this->listen(QHostAddress::Any, port))
+    {
         qCritical() << "Could not start server";
-    } else {
+    }
+    else
+    {
         qDebug() << "Server started on port" << port;
     }
 }
 
-bool Server::validateUser(const QString& username, const QString& password) {
+bool Server::validateUser(const QString& username, const QString& password)
+{
     QSqlQuery query;
     query.prepare("SELECT password FROM user_auth WHERE login = :login");
     query.bindValue(":login", username);
-    if (!query.exec()) {
+    if (!query.exec())
+    {
         qCritical() << "Failed to check user credentials:" << query.lastError().text();
         return false;
     }
-    if (query.next()) {
+    if (query.next())
+    {
         QString storedPassword = query.value(0).toString();
         return password == storedPassword;
     }
     return false;
 }
 
-void Server::processRegistration(QTcpSocket* clientSocket, const QString& username, const QString& password) {
-    if(isLoginFree(username)) {
-        addUserToDatabase(username, password); // Добавляем пользователя в базу
+void Server::processRegistration(QTcpSocket* clientSocket, const QString& username, const QString& password)
+{
+    if(isLoginFree(username))
+    {
+        addUserToDatabase(username, password);
         QTextStream stream(clientSocket);
         stream << "register:success\n";
-        stream.flush(); // Гарантируем отправку сообщения
+        stream.flush();
         Logger::getInstance()->logToFile("Registered user " + username);
-    } else {
+    }
+    else
+    {
         QTextStream stream(clientSocket);
         stream << "register:fail:username taken\n";
-        stream.flush(); // Гарантируем отправку сообщения
+        stream.flush();
         qDebug("register:fail:username taken\n");
     }
 }
 
-void Server::processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password) {
-    if(validateUser(username, password)) {
+void Server::processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password)
+{
+    if(validateUser(username, password))
+    {
         qDebug() << "user socket " << clientSocket << "\n";
         userSockets.insert(getUserID(username), clientSocket);
         QTextStream stream(clientSocket);
         stream << "login:success\n";
-        stream.flush(); // Гарантируем отправку сообщения
+        stream.flush();
         connect(clientSocket, &QTcpSocket::disconnected, this, &Server::onClientDisconnected);
         Logger::getInstance()->logToFile("User " + username + " is logged in");
-    } else {
+    }
+    else
+    {
         QTextStream stream(clientSocket);
         stream << "login:fail\n";
-        stream.flush(); // Гарантируем отправку сообщения
+        stream.flush();
     }
 }
 
-void Server::onClientDisconnected() {
+void Server::onClientDisconnected()
+{
     QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
-    if (clientSocket) {
+    if (clientSocket)
+    {
         int userId = 0;
         auto it = userSockets.begin();
         while (it != userSockets.end()) {
-            if (it.value() == clientSocket) {
+            if (it.value() == clientSocket)
+            {
                 userId = it.key();
-                // Теперь, когда нашли userId, можно удалить запись
                 it = userSockets.erase(it);
                 break;
-            } else {
-                ++it;
+            }
+            else
+            {
+                it++;
             }
         }
         QString logMessage = QString("User with ID %1 disconnected").arg(QString::number(userId));
         Logger::getInstance()->logToFile(logMessage);
-        // Закрываем и удаляем сокет
         clientSocket->deleteLater();
     }
 }
 
-void Server::onNewConnection() {
+void Server::onNewConnection()
+{
     QTcpSocket *clientSocket = this->nextPendingConnection();
-    connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]() {
+    connect(clientSocket, &QTcpSocket::readyRead, this, [this, clientSocket]()
+    {
 
         QTextStream stream(clientSocket);
         QString message = stream.readAll().trimmed();
@@ -177,11 +212,12 @@ void Server::onNewConnection() {
         for(const QString &line : smallMessage)
         {
             qDebug() << "New message received:" << line;
-        QStringList parts = line.split(":");
-        if(parts.isEmpty()) return; // Если сообщение пустое, то ничего не делаем
-        QString command = parts.first();
-            if(command == "register" || command == "login") {
-                if(parts.count() < 3) return; // Для регистрации и входа нужно минимум 3 части
+            QStringList parts = line.split(":");
+            if(parts.isEmpty()) return;
+            QString command = parts.first();
+            if(command == "register" || command == "login")
+            {
+                if(parts.count() < 3) return;
                 QString username = parts.at(1);
                 QString password = parts.at(2);
                 if(command == "register")
@@ -189,19 +225,19 @@ void Server::onNewConnection() {
                     processRegistration(clientSocket, username, password);
                 }
                 else
-                { // Здесь else, так как команда может быть только "login"
+                {
                     processLogin(clientSocket, username, password);
                 }
             }
             else if (command == "search")
             {
-                if(parts.count() < 3) return; // Теперь требуются минимум 3 части: команда, текст поиска и логин пользователя
+                if(parts.count() < 3) return;
                 QString searchText = parts.at(1);
                 QString currentUserLogin = parts.at(2);
                 processSearchRequest(clientSocket, searchText, currentUserLogin);
             }
-
-            else if (command == "create_chat") {
+            else if (command == "create_chat")
+            {
                 QString chatName = parts.at(1);
                 QString chatType = parts.at(2);
                 QString userName1 = parts.at(3);
@@ -218,7 +254,8 @@ void Server::onNewConnection() {
                     stream << "create_chat:fail\n";
                 }
                 stream.flush();
-            } else if (command == "get_chats")
+            }
+            else if (command == "get_chats")
             {
                 if(parts.count() < 2) return;
                 QString username = parts.at(1);
@@ -227,9 +264,10 @@ void Server::onNewConnection() {
                 {
                     getChatsForUser(clientSocket, userId);
                 }
-            } else if (command == "send_message")
+            }
+            else if (command == "send_message")
             {
-                if(parts.count() < 4) return; // Нужно минимум 4 части для отправки сообщения
+                if(parts.count() < 4) return;
                 int chatId = parts.at(1).toInt();
                 int userId = parts.at(2).toInt();
                 QString messageText = parts.at(3);
@@ -250,26 +288,28 @@ void Server::onNewConnection() {
                     participantsQuery.prepare("SELECT user_id FROM chat_participants WHERE chat_id = :chatId AND user_id != :senderId");
                     participantsQuery.bindValue(":chatId", chatId);
                     participantsQuery.bindValue(":senderId", userId);
-                    if (participantsQuery.exec()) {
-                            while (participantsQuery.next()) {
-                                int participantId = participantsQuery.value(0).toInt();
+                    if (participantsQuery.exec())
+                    {
+                        while (participantsQuery.next())
+                        {
+                            int participantId = participantsQuery.value(0).toInt();
 
-                                // Если для этого userId есть открытое подключение
-                                if (userSockets.contains(participantId)) {
-                                    QTcpSocket* recipientSocket = userSockets[participantId];
-                                    QTextStream recipientStream(recipientSocket);
+                            if (userSockets.contains(participantId))
+                            {
+                                QTcpSocket* recipientSocket = userSockets[participantId];
+                                QTextStream recipientStream(recipientSocket);
 
-                                    // Отправляем уведомление об новом сообщении
-                                    recipientStream << "new_message_in_chat:" << chatId << "\n";
-                                    recipientStream.flush();
+                                recipientStream << "new_message_in_chat:" << chatId << "\n";
+                                recipientStream.flush();
 
-                                    // Выводим информацию на сервере
-                                    qDebug() << "Notification sent to user ID" << participantId << "about new message in chat ID" << chatId;
-                                }
+                                qDebug() << "Notification sent to user ID" << participantId << "about new message in chat ID" << chatId;
                             }
-                        } else {
-                            qCritical() << "Failed to query chat participants:" << participantsQuery.lastError().text();
                         }
+                    }
+                    else
+                    {
+                        qCritical() << "Failed to query chat participants:" << participantsQuery.lastError().text();
+                    }
                 }
                 else
                 {
@@ -294,60 +334,53 @@ void Server::onNewConnection() {
     });
 }
 
-void Server::getChatsForUser(QTcpSocket* clientSocket, int userId) {
+void Server::getChatsForUser(QTcpSocket* clientSocket, int userId)
+{
     QSqlQuery query;
-    // Изменяем запрос, чтобы он также проверял наличие непрочитанных сообщений для каждого чата и пользователя
-    query.prepare(R"(
-        SELECT
-            ua.login, c.chat_id,
-            EXISTS (
-                SELECT 1
-                FROM messages m
-                WHERE m.chat_id = c.chat_id AND m.user_id != :user_id
-                AND m.timestamp_read IS NULL
-            ) AS has_unread_messages
-        FROM user_auth ua
-        JOIN chat_participants cp ON cp.user_id = ua.user_id
-        JOIN chats c ON c.chat_id = cp.chat_id
-        WHERE c.chat_id IN (
-            SELECT chat_id
-            FROM chat_participants
-            WHERE user_id = :user_id
-        )
-        AND ua.user_id != :user_id
-    )");
+    query.prepare(R"( SELECT ua.login, c.chat_id, EXISTS
+                (SELECT 1 FROM messages m WHERE m.chat_id = c.chat_id AND m.user_id != :user_id AND m.timestamp_read IS NULL)
+                AS has_unread_messages FROM user_auth ua JOIN chat_participants cp ON cp.user_id = ua.user_id
+                JOIN chats c ON c.chat_id = cp.chat_id WHERE c.chat_id IN
+                (SELECT chat_id FROM chat_participants WHERE user_id = :user_id )
+                AND ua.user_id != :user_id )");
 
     query.bindValue(":user_id", userId);
 
-    if (query.exec()) {
+    if (query.exec())
+    {
         QTextStream stream(clientSocket);
-        while (query.next()) {
+        while (query.next())
+        {
             QString username = query.value(0).toString();
             QString chatId = query.value(1).toString();
             bool hasUnreadMessages = query.value(2).toBool();
-
-            // Отправляем информацию о каждом чате, включая наличие непрочитанных сообщений
-            stream << "chat_list_item:" << chatId << ":" << username
-                   << ":" << (hasUnreadMessages ? "has_new_messages" : "no_new_messages") << '\n';
+            stream << "chat_list_item:" << chatId << ":" << username << ":" << (hasUnreadMessages ? "has_new_messages" : "no_new_messages") << '\n';
         }
         stream.flush();
-    } else {
+    }
+    else
+    {
         qCritical() << "Failed to get chats for user:" << query.lastError().text();
     }
 }
 
 
-void Server::getUserId(QTcpSocket* clientSocket, const QString& login) {
+void Server::getUserId(QTcpSocket* clientSocket, const QString& login)
+{
     QSqlQuery query;
     query.prepare("SELECT user_id FROM user_auth WHERE login = :login");
     query.bindValue(":login", login);
-    if (query.exec() && query.next()) {
+
+    if (query.exec() && query.next())
+    {
         int userId = query.value(0).toInt();
         QTextStream stream(clientSocket);
         stream << "user_id:" << userId << "\n";
         stream.flush();
         qDebug() << "UserID = " << userId << "\n";
-    } else {
+    }
+    else
+    {
         qCritical() << "Failed to get user ID for login:" << query.lastError().text();
     }
 }
@@ -357,43 +390,56 @@ int Server::getUserID(const QString& login)
     QSqlQuery query;
     query.prepare("SELECT user_id FROM user_auth WHERE login = :login");
     query.bindValue(":login", login);
+
     if (query.exec() && query.next())
+    {
         return query.value(0).toInt();
+    }
     else
+    {
         return 0;
+    }
 }
 
-int Server::createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2) {
+int Server::createChat(const QString& chatName, const QString& chatType, const QString& userName1, const QString& userName2)
+{
     QSqlQuery query;
     int userId1 = findUserID(userName1);
     int userId2 = findUserID(userName2);
 
-    if (userId1 == -1 || userId2 == -1) {
+    if (userId1 == -1 || userId2 == -1)
+    {
         qCritical() << "One of the users does not exist";
         return -1;
     }
 
-    if (chatExistsBetweenUsers(userId1, userId2)) {
+    if (chatExistsBetweenUsers(userId1, userId2))
+    {
         qCritical() << "Chat between these users already exists";
         return -1;
     }
+
     qDebug() << "chatName: " << chatName << " chatType: " << chatType << "\n";
     query.prepare("INSERT INTO chats (chat_name, chat_type) VALUES (:chat_name, :chat_type)");
     query.bindValue(":chat_name", chatName);
     query.bindValue(":chat_type", chatType);
-    if (!query.exec()) {
+
+    if (!query.exec())
+    {
         qCritical() << "Failed to create chat:" << query.lastError().text();
         return -1;
     }
     return query.lastInsertId().toInt();
 }
 
-void Server::addUserToChat(const int chatId, const int userId) {
+void Server::addUserToChat(const int chatId, const int userId)
+{
     QSqlQuery query;
     query.prepare("INSERT INTO chat_participants (chat_id, user_id) VALUES (:chat_id, :user_id)");
     query.bindValue(":chat_id", chatId);
     query.bindValue(":user_id", userId);
-    if (!query.exec()) {
+    if (!query.exec())
+    {
         qCritical() << "Failed to add user to chat:" << query.lastError().text();
     }
 }
@@ -410,9 +456,9 @@ int Server::findUserID(const QString& userName)
     }
     else
     {
-        if (query.next()) // Перемещаем курсор на следующую запись в результатах запроса.
+        if (query.next())
         {
-            return query.value(0).toInt(); // Теперь мы можем безопасно получить значение.
+            return query.value(0).toInt();
         }
         else
         {
@@ -422,7 +468,8 @@ int Server::findUserID(const QString& userName)
     }
 }
 
-bool Server::chatExistsBetweenUsers(const int userId1, const int userId2) {
+bool Server::chatExistsBetweenUsers(const int userId1, const int userId2)
+{
     QSqlQuery query;
     query.prepare("SELECT chat_id FROM chat_participants WHERE user_id = :userId1 "
                   "INTERSECT "
@@ -430,53 +477,59 @@ bool Server::chatExistsBetweenUsers(const int userId1, const int userId2) {
     query.bindValue(":userId1", userId1);
     query.bindValue(":userId2", userId2);
     if (!query.exec() || !query.next()) {
-        return false; // Чата нет, можно создать новый
+        return false; //Чата нет, можно создать новый
     } else {
-        return true; // Чат между пользователями уже существует
+        return true; //Чат между пользователями уже существует
     }
 }
 
-void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText, const QString& currentUserLogin) {
+void Server::processSearchRequest(QTcpSocket* clientSocket, const QString& searchText, const QString& currentUserLogin)
+{
     QSqlQuery query;
-    // Добавляем условие, чтобы исключить из результатов логин текущего пользователя
     query.prepare("SELECT login FROM user_auth WHERE login LIKE :searchText AND login != :currentUserLogin");
     query.bindValue(":searchText", "%" + searchText + "%");
     query.bindValue(":currentUserLogin", currentUserLogin);
-    if (query.exec()) {
+    if (query.exec())
+    {
         QTextStream stream(clientSocket);
         qDebug() << "Search query successful. Results for:" << searchText;
-        while (query.next()) {
+        while (query.next())
+        {
             QString username = query.value(0).toString();
-            stream << "search_result:" << username << '\n'; // Отправляем каждый результат клиенту
+            stream << "search_result:" << username << '\n';
             stream.flush();
-            qDebug() << "Found user:" << username; // Выводим в лог найденного пользователя
+            qDebug() << "Found user:" << username;
         }
-        stream << "search_end\n"; // Сигнал конца результатов поиска
+        stream << "search_end\n";
         stream.flush();
-    } else {
+    }
+    else
+    {
         qCritical() << "Search query failed:" << query.lastError().text();
     }
 }
 
-void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId) {
+void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId)
+{
     bool logIsDone = false;
     QSqlQuery query;
-    // Запрос для получения сообщений чата
     query.prepare("SELECT message_id, user_id, message_text, timestamp_sent, timestamp_read FROM messages WHERE chat_id = :chatId ORDER BY timestamp_sent ASC");
     query.bindValue(":chatId", chatId);
 
-    if (query.exec()) {
+    if (query.exec())
+    {
         QTextStream stream(clientSocket);
-        while (query.next()) {
+        while (query.next())
+        {
             int messageId = query.value(0).toInt();
             int senderId = query.value(1).toInt();
             QString message = query.value(2).toString();
-            // Включаем время прочтения в запрос для проверки
+
             QVariant timestampReadVar = query.value(4);
             bool messageAlreadyRead = !timestampReadVar.isNull();
 
-            // Если получатель не является отправителем и сообщение не было прочитано
-            if (userId != senderId && !messageAlreadyRead) {
+            if (userId != senderId && !messageAlreadyRead)
+            {
                 QSqlQuery updateTimestampQuery;
                 updateTimestampQuery.prepare("UPDATE messages SET timestamp_read = CURRENT_TIMESTAMP WHERE message_id = :messageId AND timestamp_read IS NULL");
                 updateTimestampQuery.bindValue(":messageId", messageId);
@@ -491,20 +544,23 @@ void Server::getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId
                 Logger::getInstance()->logToFile(logMessage);
             }
 
-            // Отправка сообщений клиенту без временной метки (для сохранения изначального формата ответа)
             stream << "message_item:" << message << ":" << senderId << '\n';
         }
-        stream << "end_of_messages\n"; // Отправляем сигнал конца передачи сообщений
+        stream << "end_of_messages\n";
         stream.flush();
-    } else {
+    }
+    else
+    {
         qCritical() << "Failed to get messages for chat:" << query.lastError().text();
     }
 }
 
 
-void Server::updateLogViewer() {
+void Server::updateLogViewer()
+{
     QFile logFile(currentLogFilePath);
-    if (logFile.open(QIODevice::ReadOnly)) {
+    if (logFile.open(QIODevice::ReadOnly))
+    {
         QTextStream stream(&logFile);
         logViewer->setPlainText(stream.readAll());
         logFile.close();
@@ -513,13 +569,14 @@ void Server::updateLogViewer() {
     }
 }
 
-void Server::selectLogFile() {
+void Server::selectLogFile()
+{
     QString filename = QFileDialog::getOpenFileName(window, tr("Открыть файл"), QDir::homePath(), tr("Log Files (*.txt)"));
-    if(!filename.isEmpty()) {
+    if(!filename.isEmpty())
+    {
         Logger::getInstance()->setLogFile(filename);
         currentLogFilePath = filename;
-        updateLogViewer();  // Сразу обновляем содержимое лога в интерфейсе
-        // Здесь же обновляем надпись с именем файла логов
+        updateLogViewer();
         logFileNameLabel->setText(tr("Файл логов: %1").arg(QFileInfo(filename).fileName()));
     }
 }

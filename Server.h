@@ -5,30 +5,38 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
-#include <QFileDialog>
 #include <QTcpServer>
 #include <QTcpSocket>
-#include <QCoreApplication>
-#include <QTextStream>
-#include <QSqlDatabase>
-#include <QSqlQuery>
-#include <QSqlError>
 #include <QDir>
 #include <QPlainTextEdit>
-#include <QFormLayout>
 #include <QTimer>
-#include <QScrollBar>
-#include <QMessageBox>
 
-class Server : public QTcpServer {
+
+class Server : public QTcpServer
+{
     Q_OBJECT
 
-public:
-    Server(QObject *parent = nullptr);
-    ~Server();
+private:
+    QHash<int, QTcpSocket*> userSockets;
+    QWidget* window;
+    QLabel* statusLabel;
+    QPushButton* logFileButton;
+    QVBoxLayout* layout;
+    unsigned int window_width = 450;
+    unsigned int window_height = 300;
+    QPlainTextEdit* logViewer;
+    QTimer* logUpdateTimer;
+    QString currentLogFilePath = QDir::homePath() + "/default_log.txt";
+    QLabel* logFileNameLabel;
+
+    void updateLogViewer();
+    void selectLogFile();
+    int getUserID(const QString& login);
+    void onClientDisconnected();
+    void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText, const QString& currentUserLogin);
+    void addUserToChat(const int chatId, const int userId);
     bool isLoginFree(const QString& username);
     void addUserToDatabase(const QString& username, const QString& password);
-    void startServer(int port);
     bool validateUser(const QString& username, const QString& password);
     void processRegistration(QTcpSocket* clientSocket, const QString& username, const QString& password);
     void processLogin(QTcpSocket* clientSocket, const QString& username, const QString& password);
@@ -39,26 +47,13 @@ public:
     void getMessagesForChat(QTcpSocket* clientSocket, int chatId, int userId);
     void getUserId(QTcpSocket* clientSocket, const QString& login);
 
+public:
+    Server(QObject *parent = nullptr);
+    ~Server();
+    void startServer(int port);
+
 public slots:
     void onNewConnection();
-    void processSearchRequest(QTcpSocket* clientSocket, const QString& searchText, const QString& currentUserLogin);
-    void addUserToChat(const int chatId, const int userId);
-
-private:
-    QHash<int, QTcpSocket*> userSockets;
-    QWidget* window;
-    QLabel* statusLabel;
-    QPushButton* logFileButton;
-    QVBoxLayout* layout;
-    unsigned int window_width = 450, window_height = 300;
-    QPlainTextEdit* logViewer;
-    QTimer* logUpdateTimer;
-    QString currentLogFilePath = QDir::homePath() + "/default_log.txt";
-    QLabel* logFileNameLabel;
-    void updateLogViewer();
-    void selectLogFile();
-    int getUserID(const QString& login);
-    void onClientDisconnected();
 
 };
 
