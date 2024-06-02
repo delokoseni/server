@@ -208,7 +208,7 @@ void Server::onNewConnection()
     {
         QTextStream stream(clientSocket);
         QString message = stream.readAll().trimmed();
-        QStringList smallMessage = message.trimmed().split("\n", QString::SkipEmptyParts);
+        QStringList smallMessage = message.trimmed().split("\n", Qt::SkipEmptyParts);
         for(const QString &line : smallMessage)
         {
             qDebug() << "New message received:" << line;
